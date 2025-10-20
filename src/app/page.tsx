@@ -1,103 +1,209 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, useEffect, useRef, useCallback } from "react"; // Added useCallback
+import { HelpCircle } from "lucide-react";
+import ChatMessage from "@/components/ChatMessage";
+import ChatInput from "@/components/ChatInput";
+import CitationModal from "@/components/CitationModal";
+
+interface UIMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+}
+
+interface Citation {
+  source: string;
+  section: number;
+}
+
+function App() {
+  const [messages, setMessages] = useState<UIMessage[]>([]);
+  const [status, setStatus] = useState<"idle" | "submitted" | "streaming">(
+    "idle"
+  );
+  const [selectedCitation, setSelectedCitation] = useState<Citation | null>(
+    null
+  );
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const handleCitationClick = (source: string, section: number) => {
+    setSelectedCitation({ source, section });
+  };
+
+  const sendMessage = useCallback(
+    async (messageText: string) => {
+      console.log(status);
+      if (status !== "idle") return;
+
+      const userMessage: UIMessage = {
+        id: Date.now().toString() + "-user",
+        role: "user",
+        content: messageText,
+      };
+
+      // Add user message immediately
+      setMessages((prev) => [...prev, userMessage]);
+      setStatus("submitted");
+
+      const assistantId = Date.now().toString() + "-assistant";
+      const assistantMessage: UIMessage = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: [...messages, userMessage].map((msg) => ({
+              role: msg.role,
+              parts: [{ type: "text", text: msg.content }],
+            })),
+          }),
+        });
+
+        if (!response.ok || !response.body) {
+          throw new Error("Failed to fetch stream.");
+        }
+
+        setStatus("streaming");
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          console.log(value);
+          if (done) {
+            console.log("Streaming done");
+            break;
+          }
+
+          const chunk = decoder.decode(value, { stream: true });
+          fullText += chunk;
+          console.log(fullText);
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantId ? { ...msg, content: fullText } : msg
+            )
+          );
+        }
+      } catch (error) {
+        console.error("Error during streaming:", error);
+        setMessages((prev) => prev.slice(0, prev.length - 1));
+      } finally {
+        setStatus("idle");
+      }
+    },
+    [messages, status]
+  );
+
+  const handleChatInputSend = (text: string) => {
+    if (text.trim() !== "") {
+      sendMessage(text);
+    }
+  };
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="max-w-4xl mx-auto h-screen flex flex-col">
+        <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+              <HelpCircle size={24} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-gray-900">
+                HelpDesk AI
+              </h1>
+              <p className="text-sm text-gray-500">
+                Ask me anything about our services
+              </p>
+            </div>
+          </div>
+        </header>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+        <main className="flex-1 overflow-y-auto px-6 py-6">
+          {messages.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center max-w-md">
+                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <HelpCircle size={32} className="text-blue-600" />
+                </div>
+                <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+                  Welcome to HelpDesk AI
+                </h2>
+                <p className="text-gray-600 mb-6">
+                  I'm here to help answer your questions about pricing, refunds,
+                  and support.
+                </p>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  <button
+                    onClick={() => sendMessage("What are your pricing plans?")}
+                    className="px-4 py-2 text-black bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                  >
+                    Pricing plans
+                  </button>
+                  <button
+                    onClick={() => sendMessage("How do refunds work?")}
+                    className="px-4 py-2 text-black bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                  >
+                    Refund policy
+                  </button>
+                  <button
+                    onClick={() => sendMessage("How can I contact support?")}
+                    className="px-4 py-2 text-black bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                  >
+                    Contact support
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {messages.map((message) => (
+                <ChatMessage
+                  key={message.id}
+                  message={{ ...message, content: message.content }}
+                  onCitationClick={handleCitationClick}
+                />
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </main>
+
+        <footer className="bg-white border-t border-gray-200 px-6 py-4">
+          {/* Note: ChatInput needs to be modified to return the text to the parent component */}
+          <ChatInput
+            onSendMessage={handleChatInputSend}
+            disabled={status !== "idle"} // Only allow sending when idle
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        </footer>
+      </div>
+
+      {selectedCitation && (
+        <CitationModal
+          source={selectedCitation.source}
+          section={selectedCitation.section}
+          onClose={() => setSelectedCitation(null)}
+        />
+      )}
     </div>
   );
 }
+
+export default App;
