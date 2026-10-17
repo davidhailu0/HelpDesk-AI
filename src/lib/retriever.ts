@@ -1,9 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { GoogleGenAI } from "@google/genai";
-
-const ai = new GoogleGenAI({});
-const EMBEDDING_MODEL = "text-embedding-004";
+import { getEmbeddingProvider } from "@/lib/ai";
 
 export interface Snippet {
   filename: string;
@@ -49,15 +46,10 @@ async function ensureEmbeddings() {
   if (textsToEmbed.length === 0) return;
 
   try {
-    const res = await ai.models.embedContent({
-      model: EMBEDDING_MODEL,
-      contents: textsToEmbed,
-    });
-
-    const embeddings = res.embeddings?.map((e) => e.values);
+    const embeddings = await getEmbeddingProvider().embed(textsToEmbed);
 
     for (let i = 0; i < missing.length; i++) {
-      missing[i].embedding = embeddings?.[i];
+      missing[i].embedding = embeddings[i];
     }
   } catch (error) {
     console.error("Error generating batch embeddings:", error);
@@ -75,12 +67,7 @@ function cosine(a: number[], b: number[]) {
 export async function retrieveRelevantSnippets(query: string, topK = 3) {
   await ensureEmbeddings();
 
-  const queryEmbedResponse = await ai.models.embedContent({
-    model: EMBEDDING_MODEL,
-    contents: [query],
-  });
-
-  const queryEmbed = queryEmbedResponse.embeddings?.[0]?.values;
+  const [queryEmbed] = await getEmbeddingProvider().embed([query]);
 
   const scored = INDEX.map((s) => ({
     ...s,

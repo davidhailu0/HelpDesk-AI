@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import { retrieveSnippets } from "@/lib/admin-utils";
 import { getKnowledgeBaseStats } from "@/lib/admin-utils";
-import { GoogleGenAI } from "@google/genai";
+import { getChatProvider } from "@/lib/ai";
 
-const ai = new GoogleGenAI({});
-const GENERATION_MODEL = "gemini-2.5-flash";
 async function generateAnswer(
   query: string,
   snippets: { content: string; source: string }[]
@@ -29,12 +27,11 @@ USER QUESTION: "${query}"
 FINAL ANSWER:`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: GENERATION_MODEL,
-      contents: prompt,
+    const response = await getChatProvider().generate({
+      messages: [{ role: "user", content: prompt }],
     });
     return (
-      response?.text?.trim() ||
+      response.trim() ||
       "I could not find relevant information in the knowledge base to answer that question."
     );
   } catch (error) {

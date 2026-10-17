@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface RetrievedSnippet {
   source: string;
@@ -13,11 +17,13 @@ export function TestRetrieval() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<RetrievedSnippet[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const handleTest = async () => {
-    if (!query.trim()) return;
+    if (!query.trim() || isLoading) return;
 
     setIsLoading(true);
+    setHasSearched(true);
     try {
       const response = await fetch("/api/admin/test-retrieval", {
         method: "POST",
@@ -29,7 +35,7 @@ export function TestRetrieval() {
 
       const data = await response.json();
       setResults(data.snippets || []);
-    } catch (error) {
+    } catch {
       setResults([]);
     } finally {
       setIsLoading(false);
@@ -37,49 +43,58 @@ export function TestRetrieval() {
   };
 
   return (
-    <div className="p-6 space-y-4">
-      <h2 className="text-xl font-semibold text-foreground">Test Retrieval</h2>
-      <p className="text-sm text-muted-foreground">
-        Enter a query to see which snippets would be retrieved from your
-        knowledge base
-      </p>
-
-      <div className="flex gap-2">
-        <input
-          placeholder="Enter a test query..."
+    <div className="space-y-4">
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleTest();
+        }}
+      >
+        <Input
+          placeholder="Enter a test query…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleTest()}
+          aria-label="Test query"
           className="flex-1"
         />
-        <button
-          onClick={handleTest}
+        <Button
+          type="submit"
           disabled={isLoading || !query.trim()}
-          className="gap-2"
+          className="shrink-0"
         >
-          <Search className="w-4 h-4" />
-          {isLoading ? "Testing..." : "Test"}
-        </button>
-      </div>
+          <Search /> {isLoading ? "Testing…" : "Test"}
+        </Button>
+      </form>
 
-      {results.length > 0 && (
-        <div className="space-y-3 mt-4">
-          <p className="text-sm font-medium text-foreground">
-            Retrieved Snippets:
+      {isLoading && (
+        <div className="space-y-2" aria-label="Running retrieval test">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-16 rounded-lg" />
+          ))}
+        </div>
+      )}
+
+      {!isLoading && results.length > 0 && (
+        <div className="space-y-2.5">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Retrieved snippets
           </p>
           {results.map((snippet, idx) => (
-            <div key={idx} className="p-3 bg-muted/50 rounded-lg space-y-2">
-              <p className="text-sm font-mono text-primary">
+            <div key={idx} className="space-y-1.5 rounded-lg border bg-card p-3">
+              <Badge variant="secondary" className="font-mono">
                 {snippet.source} §{snippet.section}
+              </Badge>
+              <p className="text-sm leading-relaxed text-foreground">
+                {snippet.content}
               </p>
-              <p className="text-sm text-foreground">{snippet.content}</p>
             </div>
           ))}
         </div>
       )}
 
-      {results.length === 0 && !isLoading && query && (
-        <div className="p-4 bg-muted/50 rounded-lg text-center text-muted-foreground text-sm">
+      {!isLoading && hasSearched && results.length === 0 && (
+        <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
           No snippets found for this query
         </div>
       )}

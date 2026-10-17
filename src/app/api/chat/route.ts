@@ -1,7 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
+import { getChatProvider } from "@/lib/ai";
 import { retrieveRelevantSnippets } from "@/lib/retriever";
-
-const ai = new GoogleGenAI({});
 
 export const maxDuration = 30;
 
@@ -10,18 +8,29 @@ interface Citation {
   section: number;
 }
 
-function convertToGeminiMessages(messages: any[]): any[] {
+/** Converts the client's wire format ({ role, parts: [{ type, text }] }) into provider-neutral messages. */
+function toChatMessages(messages: any[]): { role: "system" | "user" | "assistant"; content: string }[] {
   return messages.map((msg) => ({
-    role: msg.role === "user" ? "user" : "model",
-    parts: msg.parts.map((part: any) => {
-      return { text: part.text };
-    }),
+    role: msg.role === "user" ? "user" : "assistant",
+    content: msg.parts.map((part: any) => part.text ?? "").join(""),
   }));
 }
 
 export async function POST(req: Request) {
   const { messages }: { messages: any[] } = await req.json();
-  const geminiMessages = convertToGeminiMessages(messages);
+
+  // Fails fast with a clear message if the AI provider is misconfigured,
+  // before any retrieval work.
+  let provider: ReturnType<typeof getChatProvider>;
+  try {
+    provider = getChatProvider();
+  } catch (e) {
+    return Response.json(
+      { error: e instanceof Error ? e.message : "AI provider configuration error" },
+      { status: 500 }
+    );
+  }
+
   const latestUserMsg =
     messages
       .filter((m) => m.role === "user")
@@ -46,14 +55,10 @@ When you answer, cite your sources like this:
 [CITATION: filename.md §section_number]
 `;
 
-  const stream = await ai.models.generateContentStream({
-    model: "gemini-2.5-flash",
-    contents: geminiMessages,
-    config: {
-      systemInstruction: systemPrompt,
-      maxOutputTokens: 500,
-    },
-  });
+  const chatMessages = [
+    { role: "system" as const, content: systemPrompt },
+    ...toChatMessages(messages),
+  ];
 
   let fullResponseText = "";
 
@@ -97,8 +102,11 @@ When you answer, cite your sources like this:
 
   (async () => {
     try {
-      for await (const chunk of stream) {
-        const text = chunk.text;
+      for await (const text of provider.stream({
+        messages: chatMessages,
+        maxOutputTokens: 500,
+        signal: req.signal,
+      })) {
         if (text) {
           await clientWriter.write(text);
           await citationWriter.write(text);

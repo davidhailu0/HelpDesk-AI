@@ -1,5 +1,7 @@
 import { useState, FormEvent } from "react";
 import { Send } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
@@ -18,23 +20,26 @@ export default function ChatInput({ onSendMessage, disabled }: ChatInputProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2">
-      <input
+    <form onSubmit={handleSubmit} className="flex w-full items-center gap-2">
+      <Input
         type="text"
         value={input}
         onChange={(e) => setInput(e.target.value)}
         disabled={disabled}
-        placeholder="Ask a question..."
-        className="flex-1 px-4 py-3 text-black rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed placeholder:text-gray-500"
+        placeholder="Ask a question about pricing, refunds, support…"
+        aria-label="Message"
+        className="h-11 flex-1 rounded-full px-5 text-base shadow-xs"
       />
-      <button
+      <Button
         type="submit"
+        size="lg"
         disabled={disabled || !input.trim()}
-        className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+        aria-label="Send message"
+        className="h-11 rounded-full px-5"
       >
-        <Send size={18} />
-        <span>Send</span>
-      </button>
+        Send
+        <Send data-icon="inline-end" />
+      </Button>
     </form>
   );
 }

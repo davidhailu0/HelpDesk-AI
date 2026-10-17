@@ -1,6 +1,8 @@
 "use client";
 
 import { FileText, Layers, Clock } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "cn";
 
 interface StatsPanelProps {
   stats: {
@@ -10,80 +12,50 @@ interface StatsPanelProps {
   };
 }
 
-// Custom Tailwind Card styling
-const StatCard: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
-  children,
-  className,
-  ...props
-}) => {
-  return (
-    <div
-      className={`
-                p-5 rounded-xl border border-gray-200 bg-white shadow-lg 
-                dark:border-gray-800 dark:bg-gray-900 
-                hover:shadow-xl transition-shadow duration-300
-                ${className}
-            `}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-};
-
 export function StatsPanel({ stats }: StatsPanelProps) {
+  const items = [
+    { label: "Total Files", value: String(stats.totalFiles), icon: FileText },
+    {
+      label: "Total Snippets",
+      value: String(stats.totalSnippets),
+      icon: Layers,
+    },
+    {
+      label: "Last Re-index",
+      value: stats.lastReindexTime,
+      icon: Clock,
+      mono: true,
+    },
+  ];
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {/* Total Files Card */}
-      <StatCard>
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <span className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Total Files
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {items.map(({ label, value, icon: Icon, mono }) => (
+        <Card
+          key={label}
+          size="sm"
+          className="shadow-xs transition-shadow hover:shadow-md"
+        >
+          <CardContent className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                {label}
+              </p>
+              <p
+                className={cn(
+                  "text-2xl font-bold tabular-nums",
+                  mono && "font-mono text-base font-medium"
+                )}
+              >
+                {value}
+              </p>
+            </div>
+            <span className="rounded-lg bg-primary/10 p-2 text-primary">
+              <Icon className="size-4" />
             </span>
-            <p className="text-3xl font-extrabold text-gray-900 dark:text-white">
-              {stats.totalFiles}
-            </p>
-          </div>
-          <div className="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-full text-indigo-600 dark:text-indigo-400">
-            <FileText className="w-5 h-5" />
-          </div>
-        </div>
-      </StatCard>
-
-      {/* Total Snippets Card */}
-      <StatCard>
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <span className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Total Snippets
-            </span>
-            <p className="text-3xl font-extrabold text-gray-900 dark:text-white">
-              {stats.totalSnippets}
-            </p>
-          </div>
-          <div className="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-full text-indigo-600 dark:text-indigo-400">
-            <Layers className="w-5 h-5" />
-          </div>
-        </div>
-      </StatCard>
-
-      {/* Last Re-index Time Card */}
-      <StatCard>
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <span className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Last Re-index
-            </span>
-            <p className="text-lg font-mono text-gray-700 dark:text-gray-300">
-              {stats.lastReindexTime}
-            </p>
-          </div>
-          <div className="p-2 bg-indigo-100 dark:bg-indigo-900/50 rounded-full text-indigo-600 dark:text-indigo-400">
-            <Clock className="w-5 h-5" />
-          </div>
-        </div>
-      </StatCard>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }

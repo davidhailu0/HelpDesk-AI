@@ -1,5 +1,15 @@
-import { X } from "lucide-react";
+"use client";
+
 import { useEffect, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface CitationModalProps {
   source: string;
@@ -14,47 +24,81 @@ export default function CitationModal({
 }: CitationModalProps) {
   const [content, setContent] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {}, [source, section]);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setFailed(false);
+    setContent("");
+
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/admin/files/${encodeURIComponent(source)}`
+        );
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+        const data = await res.json();
+
+        // Section exactly like the retriever does: blank-line separated blocks.
+        const sections = String(data.content ?? "")
+          .split(/\n{2,}/)
+          .map((s: string) => s.trim())
+          .filter(Boolean);
+
+        if (!cancelled) setContent(sections[section - 1] ?? "");
+      } catch {
+        if (!cancelled) setFailed(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [source, section]);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900">
-            {source} - Section {section}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>
+            {source} <span className="text-muted-foreground">·</span> Section{" "}
+            {section}
+          </DialogTitle>
+          <DialogDescription>
+            The knowledge base excerpt used to answer your question.
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="max-h-[55vh] overflow-y-auto pr-1">
           {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <div className="space-y-2.5" aria-label="Loading section">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-[92%]" />
+              <Skeleton className="h-4 w-[97%]" />
+              <Skeleton className="h-4 w-[70%]" />
             </div>
+          ) : failed || !content ? (
+            <p className="text-sm text-muted-foreground">
+              This section could not be loaded. It may have been removed from
+              the knowledge base.
+            </p>
           ) : (
-            <div className="prose prose-sm max-w-none">
-              <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
-                {content}
-              </p>
-            </div>
+            <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+              {content}
+            </p>
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
+        <DialogFooter showCloseButton />
+      </DialogContent>
+    </Dialog>
   );
 }

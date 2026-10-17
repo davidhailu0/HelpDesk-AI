@@ -1,10 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react"; // Added useCallback
-import { HelpCircle } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
+import { HelpCircle, Settings, Tag, RotateCcw, LifeBuoy } from "lucide-react";
 import ChatMessage from "@/components/ChatMessage";
 import ChatInput from "@/components/ChatInput";
 import CitationModal from "@/components/CitationModal";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "cn";
 
 interface UIMessage {
   id: string;
@@ -16,6 +20,35 @@ interface Citation {
   source: string;
   section: number;
 }
+
+/** Pulls [CITATION: file.md §N] markers out of an assistant reply (deduped). */
+function extractCitations(text: string): Citation[] {
+  const citationRegex = /\[CITATION: ([^\]]+)\]/g;
+  const seen = new Set<string>();
+  const citations: Citation[] = [];
+  let match;
+
+  while ((match = citationRegex.exec(text)) !== null) {
+    const [, citation] = match;
+    const [source, section] = citation.split(" §");
+    const parsed: Citation = {
+      source: source.trim(),
+      section: Number.parseInt(section, 10),
+    };
+    const key = `${parsed.source}#${parsed.section}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      citations.push(parsed);
+    }
+  }
+  return citations;
+}
+
+const SUGGESTIONS = [
+  { icon: Tag, label: "Pricing plans", q: "What are your pricing plans?" },
+  { icon: RotateCcw, label: "Refund policy", q: "How do refunds work?" },
+  { icon: LifeBuoy, label: "Contact support", q: "How can I contact support?" },
+];
 
 function App() {
   const [messages, setMessages] = useState<UIMessage[]>([]);
@@ -41,7 +74,6 @@ function App() {
 
   const sendMessage = useCallback(
     async (messageText: string) => {
-      console.log(status);
       if (status !== "idle") return;
 
       const userMessage: UIMessage = {
@@ -86,15 +118,10 @@ function App() {
 
         while (true) {
           const { done, value } = await reader.read();
-          console.log(value);
-          if (done) {
-            console.log("Streaming done");
-            break;
-          }
+          if (done) break;
 
           const chunk = decoder.decode(value, { stream: true });
           fullText += chunk;
-          console.log(fullText);
           setMessages((prev) =>
             prev.map((msg) =>
               msg.id === assistantId ? { ...msg, content: fullText } : msg
@@ -118,82 +145,96 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="max-w-4xl mx-auto h-screen flex flex-col">
-        <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+    <div className="flex h-dvh flex-col bg-background">
+      <header className="shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
-              <HelpCircle size={24} className="text-white" />
+            <div className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <HelpCircle className="size-5" />
             </div>
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                HelpDesk AI
-              </h1>
-              <p className="text-sm text-gray-500">
+            <div className="leading-tight">
+              <h1 className="text-base font-semibold">HelpDesk AI</h1>
+              <p className="text-xs text-muted-foreground">
                 Ask me anything about our services
               </p>
             </div>
           </div>
-        </header>
+          <div className="flex items-center gap-1">
+            <Link
+              href="/admin"
+              className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+            >
+              <Settings /> Admin
+            </Link>
+            <ThemeToggle />
+          </div>
+        </div>
+      </header>
 
-        <main className="flex-1 overflow-y-auto px-6 py-6">
+      <main className="flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-3xl px-6 py-8">
           {messages.length === 0 ? (
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center max-w-md">
-                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <HelpCircle size={32} className="text-blue-600" />
-                </div>
-                <h2 className="text-2xl font-semibold text-gray-900 mb-2">
-                  Welcome to HelpDesk AI
-                </h2>
-                <p className="text-gray-600 mb-6">
-                  I'm here to help answer your questions about pricing, refunds,
-                  and support.
-                </p>
-                <div className="flex flex-wrap gap-2 justify-center">
-                  <button
-                    onClick={() => sendMessage("What are your pricing plans?")}
-                    className="px-4 py-2 text-black bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+            <div className="flex min-h-[55vh] flex-col items-center justify-center text-center">
+              <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <HelpCircle className="size-7" />
+              </div>
+              <h2 className="text-xl font-semibold">Welcome to HelpDesk AI</h2>
+              <p className="mb-6 mt-1 max-w-sm text-sm text-muted-foreground">
+                I&apos;m here to help answer your questions about pricing,
+                refunds, and support.
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {SUGGESTIONS.map(({ icon: Icon, label, q }) => (
+                  <Button
+                    key={label}
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full"
+                    disabled={status !== "idle"}
+                    onClick={() => sendMessage(q)}
                   >
-                    Pricing plans
-                  </button>
-                  <button
-                    onClick={() => sendMessage("How do refunds work?")}
-                    className="px-4 py-2 text-black bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
-                  >
-                    Refund policy
-                  </button>
-                  <button
-                    onClick={() => sendMessage("How can I contact support?")}
-                    className="px-4 py-2 text-black bg-white border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors"
-                  >
-                    Contact support
-                  </button>
-                </div>
+                    <Icon /> {label}
+                  </Button>
+                ))}
               </div>
             </div>
           ) : (
             <div className="space-y-6">
-              {messages.map((message) => (
+              {messages.map((message, index) => (
                 <ChatMessage
                   key={message.id}
-                  message={{ ...message, content: message.content }}
+                  message={{
+                    ...message,
+                    citations:
+                      message.role === "assistant"
+                        ? extractCitations(message.content)
+                        : undefined,
+                    isStreaming:
+                      status !== "idle" &&
+                      message.role === "assistant" &&
+                      index === messages.length - 1,
+                  }}
                   onCitationClick={handleCitationClick}
                 />
               ))}
               <div ref={messagesEndRef} />
             </div>
           )}
-        </main>
+        </div>
+      </main>
 
-        <footer className="bg-white border-t border-gray-200 px-6 py-4">
-          {/* Note: ChatInput needs to be modified to return the text to the parent component */}
+      <footer className="shrink-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="mx-auto w-full max-w-3xl space-y-2 px-6 py-4">
           <ChatInput
             onSendMessage={handleChatInputSend}
-            disabled={status !== "idle"} // Only allow sending when idle
+            disabled={status !== "idle"}
           />
-        </footer>
-      </div>
+          <p className="text-center text-xs text-muted-foreground">
+            Answers are grounded in the knowledge base — check the citations
+            for sources.
+          </p>
+        </div>
+      </footer>
 
       {selectedCitation && (
         <CitationModal
